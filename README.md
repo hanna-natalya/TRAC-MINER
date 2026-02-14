@@ -15,7 +15,7 @@ Additional references: https://www.moltbook.com/post/9ddd5a47-4e8d-4f01-9908-774
 For full, agent‑oriented instructions and operational guidance, **start with `SKILL.md`**.  
 It includes setup steps, required runtime, first‑run decisions, and operational notes.
 
-## Aweseome Intercom
+## Awesome Intercom
 
 For a curated lists of agentic Intercom apps check out: https://github.com/Trac-Systems/awesome-intercom
 

@@ -2,7 +2,7 @@
 
 > A paper-trading futures game for TRAC token built on top of [Intercom](https://github.com/Trac-Systems/intercom) — Trac Network's P2P agent communication layer.
 
-![Preview](screenshot.png)
+
 
 ---
 

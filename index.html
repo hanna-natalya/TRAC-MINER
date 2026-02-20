@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TRAC Miner — P2P Agent Mining Game</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #030a0f;
+    --panel: #060f17;
+    --border: #0a3a52;
+    --accent: #00d4ff;
+    --accent2: #ff6b00;
+    --accent3: #00ff88;
+    --text: #c8e8f8;
+    --dim: #3a6080;
+    --glow: 0 0 20px rgba(0,212,255,0.4);
+    --glow2: 0 0 20px rgba(255,107,0,0.4);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+    background-image:
+      radial-gradient(ellipse at 20% 50%, rgba(0,80,120,0.12) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 20%, rgba(0,212,255,0.06) 0%, transparent 50%),
+      repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(0,212,255,0.03) 40px),
+      repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(0,212,255,0.03) 40px);
+  }
+
+  /* Scanline overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,0.15) 0px, rgba(0,0,0,0.15) 1px, transparent 1px, transparent 2px);
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  header {
+    text-align: center;
+    padding: 30px 20px 20px;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+
+  header::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 60%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  }
+
+  .logo {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(28px, 5vw, 52px);
+    font-weight: 900;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    text-shadow: 0 0 30px rgba(0,212,255,0.8), 0 0 60px rgba(0,212,255,0.3);
+    animation: pulse-logo 3s ease-in-out infinite;
+  }
+
+  @keyframes pulse-logo {
+    0%, 100% { text-shadow: 0 0 30px rgba(0,212,255,0.8), 0 0 60px rgba(0,212,255,0.3); }
+    50% { text-shadow: 0 0 40px rgba(0,212,255,1), 0 0 80px rgba(0,212,255,0.5), 0 0 120px rgba(0,212,255,0.2); }
+  }
+
+  .subtitle {
+    font-family: 'Share Tech Mono', monospace;
+    color: var(--dim);
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    margin-top: 6px;
+  }
+
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 280px 320px;
+    gap: 16px;
+    padding: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  @media (max-width: 900px) {
+    .main-grid { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .panel::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0.6;
+  }
+
+  .panel-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .panel-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* === MINE CORE === */
+  .mine-core {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .core-display {
+    width: min(280px, 90vw);
+    height: min(280px, 90vw);
+    position: relative;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .core-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid rgba(0,212,255,0.3);
+    animation: ring-spin 8s linear infinite;
+  }
+
+  .core-ring:nth-child(2) {
+    inset: 10px;
+    border-color: rgba(255,107,0,0.2);
+    animation-duration: 6s;
+    animation-direction: reverse;
+  }
+
+  .core-ring:nth-child(3) {
+    inset: 20px;
+    border-color: rgba(0,255,136,0.2);
+    animation-duration: 10s;
+  }
+
+  @keyframes ring-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .core-hex {
+    position: absolute;
+    inset: 30px;
+    background: radial-gradient(circle at 40% 40%, #0a2a3a, #000a12);
+    clip-path: polygon(50% 0%, 95% 25%, 95% 75%, 50% 100%, 5% 75%, 5% 25%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    transition: transform 0.1s;
+    border: 1px solid rgba(0,212,255,0.2);
+  }
+
+  .core-hex:active { transform: scale(0.97); }
+
+  .core-icon {
+    font-size: 52px;
+    filter: drop-shadow(0 0 15px rgba(0,212,255,0.8));
+    animation: float 4s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+
+  .core-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    color: var(--dim);
+    margin-top: 8px;
+  }
+
+  .click-hint {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.2em;
+    animation: blink 2s step-end infinite;
+    text-align: center;
+  }
+
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* Particle burst on click */
+  .particle {
+    position: fixed;
+    pointer-events: none;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 14px;
+    color: var(--accent3);
+    font-weight: bold;
+    animation: particle-fly 1s ease-out forwards;
+    z-index: 1000;
+  }
+
+  @keyframes particle-fly {
+    0% { opacity: 1; transform: translate(0, 0) scale(1); }
+    100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0.5); }
+  }
+
+  /* === STATS === */
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(10,58,82,0.5);
+    font-size: 15px;
+  }
+
+  .stat-label { color: var(--dim); font-size: 13px; letter-spacing: 0.1em; }
+
+  .stat-value {
+    font-family: 'Orbitron', monospace;
+    font-size: 16px;
+    color: var(--accent);
+    text-shadow: 0 0 8px rgba(0,212,255,0.5);
+  }
+
+  .stat-value.orange { color: var(--accent2); text-shadow: 0 0 8px rgba(255,107,0,0.5); }
+  .stat-value.green { color: var(--accent3); text-shadow: 0 0 8px rgba(0,255,136,0.5); }
+
+  /* Big TNK display */
+  .tnk-display {
+    text-align: center;
+    padding: 16px;
+    background: rgba(0,212,255,0.04);
+    border: 1px solid rgba(0,212,255,0.15);
+    border-radius: 2px;
+    margin-bottom: 16px;
+  }
+
+  .tnk-amount {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(22px, 4vw, 34px);
+    font-weight: 900;
+    color: var(--accent);
+    text-shadow: 0 0 20px rgba(0,212,255,0.6);
+    letter-spacing: 0.05em;
+  }
+
+  .tnk-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--dim);
+    letter-spacing: 0.3em;
+    margin-top: 4px;
+  }
+
+  /* Progress bar */
+  .prog-wrap {
+    margin: 8px 0;
+  }
+
+  .prog-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--dim);
+    margin-bottom: 4px;
+    font-family: 'Share Tech Mono', monospace;
+  }
+
+  .prog-bar {
+    height: 6px;
+    background: rgba(0,212,255,0.08);
+    border-radius: 1px;
+    overflow: hidden;
+  }
+
+  .prog-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent3));
+    transition: width 0.3s ease;
+    box-shadow: 0 0 8px rgba(0,212,255,0.5);
+  }
+
+  .prog-fill.orange {
+    background: linear-gradient(90deg, var(--accent2), #ffaa00);
+    box-shadow: 0 0 8px rgba(255,107,0,0.5);
+  }
+
+  /* === UPGRADES === */
+  .upgrade-list { display: flex; flex-direction: column; gap: 8px; }
+
+  .upgrade-btn {
+    background: rgba(0,20,35,0.8);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .upgrade-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(0,212,255,0.05), transparent);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .upgrade-btn:hover:not(:disabled)::before { opacity: 1; }
+  .upgrade-btn:hover:not(:disabled) { border-color: rgba(0,212,255,0.5); transform: translateX(2px); }
+  .upgrade-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .upgrade-btn.purchased { border-color: rgba(0,255,136,0.4); background: rgba(0,255,136,0.04); }
+
+  .upg-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+
+  .upg-name {
+    font-family: 'Orbitron', monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: var(--text);
+  }
+
+  .upg-cost {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: var(--accent2);
+  }
+
+  .upg-desc {
+    font-size: 12px;
+    color: var(--dim);
+    line-height: 1.4;
+  }
+
+  .upg-count {
+    display: inline-block;
+    background: rgba(0,212,255,0.15);
+    color: var(--accent);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 1px;
+    margin-right: 6px;
+  }
+
+  /* === AGENTS LOG === */
+  .log-area {
+    height: 200px;
+    overflow-y: auto;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--dim);
+    line-height: 1.7;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .log-entry { padding: 2px 0; border-bottom: 1px solid rgba(10,58,82,0.2); }
+  .log-entry .ts { color: rgba(0,212,255,0.4); margin-right: 8px; }
+  .log-entry.alert { color: var(--accent3); }
+  .log-entry.warn { color: var(--accent2); }
+
+  /* Battle area */
+  .battle-area {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .agent-card {
+    background: rgba(0,15,25,0.8);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: border-color 0.3s;
+  }
+
+  .agent-card.active { border-color: rgba(0,255,136,0.4); }
+
+  .agent-icon { font-size: 28px; filter: drop-shadow(0 0 8px rgba(0,212,255,0.5)); }
+
+  .agent-info { flex: 1; }
+
+  .agent-name {
+    font-family: 'Orbitron', monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .agent-hp .prog-bar { height: 4px; }
+
+  .battle-btn {
+    background: linear-gradient(135deg, rgba(255,107,0,0.15), rgba(255,107,0,0.05));
+    border: 1px solid rgba(255,107,0,0.4);
+    color: var(--accent2);
+    font-family: 'Orbitron', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    padding: 6px 12px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .battle-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(255,107,0,0.3), rgba(255,107,0,0.1));
+    box-shadow: 0 0 12px rgba(255,107,0,0.3);
+  }
+
+  .battle-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* Footer */
+  .footer {
+    text-align: center;
+    padding: 20px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--dim);
+    border-top: 1px solid var(--border);
+    letter-spacing: 0.15em;
+  }
+
+  .trac-addr {
+    color: var(--accent);
+    font-size: 12px;
+    margin-top: 6px;
+    text-shadow: 0 0 8px rgba(0,212,255,0.4);
+  }
+
+  /* Achievement toast */
+  .toast {
+    position: fixed;
+    top: 20px; right: 20px;
+    background: var(--panel);
+    border: 1px solid var(--accent3);
+    border-radius: 2px;
+    padding: 12px 20px;
+    font-family: 'Orbitron', monospace;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    color: var(--accent3);
+    box-shadow: 0 0 20px rgba(0,255,136,0.3);
+    z-index: 2000;
+    animation: toast-in 0.3s ease-out forwards;
+    max-width: 280px;
+  }
+
+  @keyframes toast-in {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .level-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, rgba(0,212,255,0.2), rgba(0,212,255,0.05));
+    border: 1px solid rgba(0,212,255,0.4);
+    color: var(--accent);
+    font-family: 'Orbitron', monospace;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 1px;
+    letter-spacing: 0.1em;
+  }
+
+  /* Network visualizer */
+  .net-vis {
+    height: 80px;
+    position: relative;
+    overflow: hidden;
+    background: rgba(0,10,18,0.5);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    margin-bottom: 12px;
+  }
+
+  canvas.net-canvas { width: 100%; height: 100%; display: block; }
+
+  .section-gap { margin-top: 16px; }
+
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .panel { animation: fadeInUp 0.5s ease-out both; }
+  .panel:nth-child(2) { animation-delay: 0.1s; }
+  .panel:nth-child(3) { animation-delay: 0.2s; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">⬡ TRAC MINER</div>
+  <div class="subtitle">P2P AGENT MINING SIMULATION · TRAC NETWORK</div>
+</header>
+
+<div class="main-grid">
+
+  <!-- LEFT: Mine Core -->
+  <div class="panel">
+    <div class="panel-title">MINE CORE</div>
+    <div class="mine-core">
+      <div class="net-vis">
+        <canvas class="net-canvas" id="netCanvas"></canvas>
+      </div>
+      <div class="core-display" id="mineBtn" onclick="mine(event)">
+        <div class="core-ring"></div>
+        <div class="core-ring"></div>
+        <div class="core-ring"></div>
+        <div class="core-hex">
+          <div class="core-icon">⬡</div>
+          <div class="core-label">CLICK TO MINE</div>
+        </div>
+      </div>
+      <div class="click-hint">[ TAP TO GENERATE TNK ]</div>
+      <div class="tnk-display">
+        <div class="tnk-amount" id="tnkDisplay">0.000</div>
+        <div class="tnk-label">TNK MINED</div>
+      </div>
+      <div style="width:100%">
+        <div class="prog-wrap">
+          <div class="prog-label">
+            <span>LEVEL <span id="levelNum">1</span></span>
+            <span id="xpLabel">0 / 100 XP</span>
+          </div>
+          <div class="prog-bar"><div class="prog-fill" id="xpBar" style="width:0%"></div></div>
+        </div>
+        <div class="prog-wrap">
+          <div class="prog-label">
+            <span>AGENT HEAT</span>
+            <span id="heatLabel">0%</span>
+          </div>
+          <div class="prog-bar"><div class="prog-fill orange" id="heatBar" style="width:0%"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MIDDLE: Stats + Upgrades -->
+  <div class="panel">
+    <div class="panel-title">AGENT STATUS</div>
+
+    <div class="stat-row">
+      <span class="stat-label">TOTAL MINED</span>
+      <span class="stat-value" id="totalStat">0.000</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">TNK/CLICK</span>
+      <span class="stat-value green" id="perClickStat">0.001</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">TNK/SEC</span>
+      <span class="stat-value green" id="perSecStat">0.000</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">LEVEL</span>
+      <span class="stat-value"><span class="level-badge" id="levelBadge">LVL 1</span></span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">BATTLES WON</span>
+      <span class="stat-value orange" id="battlesStat">0</span>
+    </div>
+
+    <div class="section-gap">
+      <div class="panel-title">UPGRADES</div>
+      <div class="upgrade-list" id="upgradeList"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Agents + Log -->
+  <div class="panel">
+    <div class="panel-title">P2P AGENTS</div>
+    <div class="battle-area" id="agentArea"></div>
+
+    <div class="section-gap">
+      <div class="panel-title">NETWORK LOG</div>
+      <div class="log-area" id="logArea"></div>
+    </div>
+  </div>
+
+</div>
+
+<footer class="footer">
+  TRAC MINER · BUILT ON TRAC NETWORK · P2P AGENT COORDINATION
+  <div class="trac-addr">TRAC ADDRESS: [YOUR_TRAC_ADDRESS_HERE]</div>
+</footer>
+
+<script>
+// ============================================================
+// GAME STATE
+// ============================================================
+const state = {
+  tnk: 0,
+  totalMined: 0,
+  xp: 0,
+  level: 1,
+  xpNeeded: 100,
+  heat: 0,
+  battlesWon: 0,
+  upgrades: [
+    { id: 'faster', name: 'QUANTUM DRILL', desc: '+0.005 TNK/click', cost: 5, bought: 0, max: 10, effect: () => { state.perClick += 0.005; } },
+    { id: 'miner', name: 'AUTO-AGENT', desc: '+0.01 TNK/sec passive', cost: 25, bought: 0, max: 5, effect: () => { state.perSec += 0.01; } },
+    { id: 'multiplier', name: 'NODE RELAY', desc: 'x2 click power', cost: 100, bought: 0, max: 3, effect: () => { state.perClick *= 2; } },
+    { id: 'swarm', name: 'SWARM PROTOCOL', desc: '+0.1 TNK/sec', cost: 500, bought: 0, max: 3, effect: () => { state.perSec += 0.1; } },
+    { id: 'overclock', name: 'OVERCLOCK', desc: 'Reduce heat decay 50%', cost: 50, bought: 0, max: 1, effect: () => { state.heatDecay *= 2; } },
+  ],
+  perClick: 0.001,
+  perSec: 0,
+  heatDecay: 1,
+  agents: [
+    { id: 'scout', name: 'SCOUT AGENT', icon: '🤖', hp: 100, maxHp: 100, reward: 2, level: 1 },
+    { id: 'relay', name: 'RELAY NODE', icon: '📡', hp: 250, maxHp: 250, reward: 7, level: 3 },
+    { id: 'guardian', name: 'GUARDIAN', icon: '🛡️', hp: 600, maxHp: 600, reward: 20, level: 7 },
+  ],
+  logs: [],
+};
+
+// ============================================================
+// UPGRADES
+// ============================================================
+function renderUpgrades() {
+  const el = document.getElementById('upgradeList');
+  el.innerHTML = '';
+  state.upgrades.forEach((u, i) => {
+    const canBuy = state.tnk >= u.cost && u.bought < u.max;
+    const maxed = u.bought >= u.max;
+    const btn = document.createElement('button');
+    btn.className = 'upgrade-btn' + (maxed ? ' purchased' : '');
+    btn.disabled = !canBuy;
+    btn.innerHTML = `
+      <div class="upg-header">
+        <div class="upg-name">${maxed ? '<span class="upg-count">MAX</span>' : `<span class="upg-count">${u.bought}/${u.max}</span>`}${u.name}</div>
+        <div class="upg-cost">${maxed ? '✓' : fmt(u.cost) + ' TNK'}</div>
+      </div>
+      <div class="upg-desc">${u.desc}</div>
+    `;
+    if (!maxed) btn.onclick = () => buyUpgrade(i);
+    el.appendChild(btn);
+  });
+}
+
+function buyUpgrade(i) {
+  const u = state.upgrades[i];
+  if (state.tnk < u.cost || u.bought >= u.max) return;
+  state.tnk -= u.cost;
+  u.bought++;
+  u.cost = Math.floor(u.cost * 2.5);
+  u.effect();
+  addLog(`Purchased: ${u.name}`, 'alert');
+  renderUpgrades();
+  updateStats();
+}
+
+// ============================================================
+// MINING
+// ============================================================
+function mine(e) {
+  if (state.heat >= 100) {
+    addLog('OVERHEAT! Wait for cooldown...', 'warn');
+    return;
+  }
+  const gained = state.perClick * (1 + state.level * 0.1);
+  state.tnk += gained;
+  state.totalMined += gained;
+  state.xp += 1;
+  state.heat = Math.min(100, state.heat + 8 / state.heatDecay);
+  spawnParticle(e, `+${gained.toFixed(4)}`);
+  checkLevel();
+  updateStats();
+  renderUpgrades();
+}
+
+function spawnParticle(e, text) {
+  const p = document.createElement('div');
+  p.className = 'particle';
+  const rect = document.getElementById('mineBtn').getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  const angle = Math.random() * Math.PI * 2;
+  const dist = 60 + Math.random() * 60;
+  p.style.left = cx + 'px';
+  p.style.top = cy + 'px';
+  p.style.setProperty('--tx', Math.cos(angle) * dist + 'px');
+  p.style.setProperty('--ty', Math.sin(angle) * dist + 'px');
+  p.textContent = text;
+  document.body.appendChild(p);
+  setTimeout(() => p.remove(), 1000);
+}
+
+// ============================================================
+// LEVELS
+// ============================================================
+function checkLevel() {
+  if (state.xp >= state.xpNeeded) {
+    state.xp -= state.xpNeeded;
+    state.level++;
+    state.xpNeeded = Math.floor(state.xpNeeded * 1.8);
+    state.perClick += 0.001 * state.level;
+    showToast(`LEVEL UP! → LVL ${state.level}`);
+    addLog(`Level up! Now LVL ${state.level}. Click power increased.`, 'alert');
+  }
+}
+
+// ============================================================
+// AGENTS / BATTLE
+// ============================================================
+function renderAgents() {
+  const el = document.getElementById('agentArea');
+  el.innerHTML = '';
+  state.agents.forEach((a, i) => {
+    const unlocked = state.level >= a.level;
+    const defeated = a.hp <= 0;
+    const card = document.createElement('div');
+    card.className = 'agent-card' + (unlocked && !defeated ? ' active' : '');
+    const hpPct = (a.hp / a.maxHp * 100).toFixed(1);
+    card.innerHTML = `
+      <div class="agent-icon">${a.icon}</div>
+      <div class="agent-info">
+        <div class="agent-name">${a.name} <span class="level-badge">LVL${a.level}</span></div>
+        <div class="agent-hp">
+          <div class="prog-label"><span>HP</span><span>${defeated ? 'DEFEATED' : a.hp.toFixed(0)+'/'+a.maxHp}</span></div>
+          <div class="prog-bar"><div class="prog-fill" style="width:${hpPct}%"></div></div>
+        </div>
+      </div>
+      <button class="battle-btn" ${(!unlocked || defeated) ? 'disabled' : ''} onclick="battle(${i})">
+        ${!unlocked ? 'LOCKED' : defeated ? 'DONE' : 'ATTACK'}
+      </button>
+    `;
+    el.appendChild(card);
+  });
+}
+
+function battle(i) {
+  const a = state.agents[i];
+  if (a.hp <= 0 || state.level < a.level) return;
+  const dmg = state.perClick * 100 * (1 + state.level * 0.2);
+  a.hp = Math.max(0, a.hp - dmg);
+  addLog(`Attacked ${a.name} for ${dmg.toFixed(1)} DMG. HP: ${a.hp.toFixed(0)}`);
+  if (a.hp <= 0) {
+    state.tnk += a.reward;
+    state.totalMined += a.reward;
+    state.battlesWon++;
+    showToast(`${a.name} DEFEATED! +${a.reward} TNK`);
+    addLog(`${a.name} defeated! +${a.reward} TNK reward.`, 'alert');
+    // Respawn after 30s
+    setTimeout(() => {
+      a.hp = a.maxHp;
+      addLog(`${a.name} has respawned.`, 'warn');
+      renderAgents();
+    }, 30000);
+  }
+  renderAgents();
+  updateStats();
+}
+
+// ============================================================
+// STATS + UI
+// ============================================================
+function fmt(n) {
+  if (n >= 1e6) return (n/1e6).toFixed(2)+'M';
+  if (n >= 1e3) return (n/1e3).toFixed(2)+'K';
+  return n.toFixed(3);
+}
+
+function updateStats() {
+  document.getElementById('tnkDisplay').textContent = fmt(state.tnk);
+  document.getElementById('totalStat').textContent = fmt(state.totalMined);
+  document.getElementById('perClickStat').textContent = fmt(state.perClick * (1 + state.level * 0.1));
+  document.getElementById('perSecStat').textContent = fmt(state.perSec);
+  document.getElementById('levelNum').textContent = state.level;
+  document.getElementById('levelBadge').textContent = 'LVL ' + state.level;
+  document.getElementById('battlesStat').textContent = state.battlesWon;
+  document.getElementById('xpLabel').textContent = state.xp + ' / ' + state.xpNeeded + ' XP';
+  document.getElementById('xpBar').style.width = (state.xp / state.xpNeeded * 100) + '%';
+  document.getElementById('heatLabel').textContent = Math.round(state.heat) + '%';
+  document.getElementById('heatBar').style.width = state.heat + '%';
+}
+
+function addLog(msg, type = '') {
+  const d = new Date();
+  const ts = `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}:${d.getSeconds().toString().padStart(2,'0')}`;
+  state.logs.unshift({ ts, msg, type });
+  if (state.logs.length > 100) state.logs.pop();
+  const el = document.getElementById('logArea');
+  el.innerHTML = state.logs.map(l =>
+    `<div class="log-entry ${l.type}"><span class="ts">[${l.ts}]</span>${l.msg}</div>`
+  ).join('');
+}
+
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = '⬡ ' + msg;
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.5s'; setTimeout(() => t.remove(), 500); }, 2500);
+}
+
+// ============================================================
+// NETWORK CANVAS
+// ============================================================
+function initCanvas() {
+  const canvas = document.getElementById('netCanvas');
+  const ctx = canvas.getContext('2d');
+  const nodes = Array.from({length: 12}, () => ({
+    x: Math.random(),
+    y: Math.random(),
+    vx: (Math.random() - 0.5) * 0.003,
+    vy: (Math.random() - 0.5) * 0.003,
+  }));
+
+  function drawNet() {
+    const W = canvas.offsetWidth, H = canvas.offsetHeight;
+    canvas.width = W; canvas.height = H;
+    ctx.clearRect(0, 0, W, H);
+    nodes.forEach(n => {
+      n.x += n.vx; n.y += n.vy;
+      if (n.x < 0 || n.x > 1) n.vx *= -1;
+      if (n.y < 0 || n.y > 1) n.vy *= -1;
+    });
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const dx = (nodes[i].x - nodes[j].x) * W;
+        const dy = (nodes[i].y - nodes[j].y) * H;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        if (dist < 120) {
+          ctx.strokeStyle = `rgba(0,212,255,${0.4 * (1 - dist/120)})`;
+          ctx.lineWidth = 0.8;
+          ctx.beginPath();
+          ctx.moveTo(nodes[i].x * W, nodes[i].y * H);
+          ctx.lineTo(nodes[j].x * W, nodes[j].y * H);
+          ctx.stroke();
+        }
+      }
+    }
+    nodes.forEach(n => {
+      ctx.fillStyle = 'rgba(0,212,255,0.8)';
+      ctx.shadowColor = 'rgba(0,212,255,0.6)';
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      ctx.arc(n.x * W, n.y * H, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    });
+    requestAnimationFrame(drawNet);
+  }
+  drawNet();
+}
+
+// ============================================================
+// GAME LOOP
+// ============================================================
+const autoMessages = [
+  'P2P sidechain synced.',
+  'Agent handshake confirmed.',
+  'Block propagated to 8 peers.',
+  'TRAC network: 1,247 nodes online.',
+  'RFQ negotiated over sideChannel.',
+  'Durable state replicated.',
+  'Swarm consensus: 99.2%.',
+  'Intercom relay: latency 4ms.',
+  'TNK emission rate stable.',
+  'New peer connected from relay.',
+];
+
+let lastLog = 0;
+let lastPassive = 0;
+let lastHeatDrop = 0;
+
+function gameLoop(ts) {
+  const dt = ts - (gameLoop.last || ts);
+  gameLoop.last = ts;
+
+  // Passive income
+  if (state.perSec > 0) {
+    const earned = state.perSec * dt / 1000;
+    state.tnk += earned;
+    state.totalMined += earned;
+  }
+
+  // Heat cooldown
+  if (ts - lastHeatDrop > 200) {
+    state.heat = Math.max(0, state.heat - 2 * state.heatDecay);
+    lastHeatDrop = ts;
+  }
+
+  // Random log messages
+  if (ts - lastLog > 4000 + Math.random() * 5000) {
+    addLog(autoMessages[Math.floor(Math.random() * autoMessages.length)]);
+    lastLog = ts;
+  }
+
+  updateStats();
+  requestAnimationFrame(gameLoop);
+}
+
+// ============================================================
+// INIT
+// ============================================================
+addLog('TRAC MINER initialized. Click the core to start mining.', 'alert');
+addLog('P2P network connected. 3 agents detected.', 'alert');
+renderUpgrades();
+renderAgents();
+updateStats();
+initCanvas();
+requestAnimationFrame(gameLoop);
+
+// Keyboard shortcut: spacebar to mine
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' && e.target === document.body) {
+    e.preventDefault();
+    const btn = document.getElementById('mineBtn');
+    const rect = btn.getBoundingClientRect();
+    mine({ clientX: rect.left + rect.width/2, clientY: rect.top + rect.height/2 });
+  }
+});
+</script>
+</body>
+</html>
